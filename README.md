@@ -4,13 +4,17 @@
 
 Please make sure to have the following available before creating the project:
 
-Node.js v 20.11 LTS (current) -> https://nodejs.org/en 
-PostgreSQL v 16.2 (current) -> https://www.postgresql.org/download/
-Postman (latest)
-Visual Studio Code (latest) / Webstorm
-PostgreSQL VS Code Extension Developed by Microsoft (VS Code)
-PostgreSQL VS Code Extension Developed by Weijan Chen (VS Code)
+Node.js v 20.11 LTS (current) -> https://nodejs.org/en
 
+PostgreSQL v 16.2 (current) -> https://www.postgresql.org/download/
+
+Postman (latest)
+
+Visual Studio Code (latest) / Webstorm
+
+PostgreSQL VS Code Extension Developed by Microsoft (VS Code)
+
+PostgreSQL VS Code Extension Developed by Weijan Chen (VS Code)
 
 ## 2. Install Nest.js
 
@@ -27,6 +31,7 @@ https://docs.nestjs.com/
 `cd ready-to-prod`
 
 ## 5. Install TypeORM
+
 `npm install @nestjs/typeorm typeorm pg`
 
 ## 6. Define Architecture
@@ -35,49 +40,49 @@ https://docs.nestjs.com/
 
 The domain layer is the heart of your application, containing the business logic and domain entities. It defines the business rules and how entities interact with each other.
 
-#### 6.1.1 Entities: 
+#### 6.1.1 Entities:
 
 Represent the domain objects (e.g., User) that contain both data and behavior relevant to the business domain.
 
-#### 6.1.2 Value Objects: 
+#### 6.1.2 Value Objects:
 
 Immutable objects that represent descriptive aspects of the domain with no conceptual identity (e.g., Email, Username).
 
-#### 6.1.3 Aggregates: 
+#### 6.1.3 Aggregates:
 
 A cluster of domain entities and value objects with a single root entity known as the Aggregate Root (e.g., UserAggregate).
 
-#### 6.1.4 Domain Services: 
+#### 6.1.4 Domain Services:
 
 Stateless services that perform operations not belonging to entities or value objects.
-
 
 ### 6.2 Application Layer
 
 This layer coordinates high-level application tasks. It relies on the domain layer to implement the use cases of the application.
 
-#### 6.2.1 DTOs (Data Transfer Objects): 
+#### 6.2.1 DTOs (Data Transfer Objects):
 
 Objects used to transfer data between processes, such as from the client to the server.
 
-#### 6.2.2 Application Services: 
+#### 6.2.2 Application Services:
 
 Services that orchestrate the execution of domain logic in response to application commands or queries.
 
-
 ### 6.3 Infrastructure Layer
+
 This layer supports the other layers with technical capabilities such as database access, file system manipulation, and sending emails.
 
-#### 6.3.1. Repositories: 
+#### 6.3.1. Repositories:
 
 Implementations of the persistence contracts defined in the domain layer.
 
-#### 6.3.2 ORM Integration: 
+#### 6.3.2 ORM Integration:
+
 Configuration and use of ORM tools like TypeORM.
 
-#### 6.3.4 External Services Integration: 
-Implementation of interfaces to external services, e.g., email services.
+#### 6.3.4 External Services Integration:
 
+Implementation of interfaces to external services, e.g., email services.
 
 ## 7. Generate Module
 
@@ -107,10 +112,9 @@ or shorthand version
 
 `nest g service domain/services/users users`
 
-the blueprint being 
+the blueprint being
 
 `nest g service [folderName]/[controllerName] moduleName`
-
 
 ## 10. Implement Controller
 
@@ -164,7 +168,6 @@ Here all requests targeting /users will be intercepted by this controller.
   }
 ```
 
-
 `@Post()` Decorator used for defining HTTP Method
 
 `@Body()` Decorator defined to retrieve HTTP Request Body // same as req/body
@@ -173,12 +176,11 @@ Here all requests targeting /users will be intercepted by this controller.
 
 `@Param('id') id: string` Decorator used to retrieve HTTP URI Param (e.g. to extract the id from users/1)
 
-`@Query()` Decorator  used to extract query params
+`@Query()` Decorator used to extract query params
 
 `@Req()` Decorator used to intercept request mapped to Request from Express
 
 `@Res()` Decorator used to intercept response mapped to Response from Express
-
 
 ## 11. Implement Service
 
@@ -217,14 +219,12 @@ export class UsersService {
 
 ```
 
-### 11. Anatomy of a Service
+### 11.1 Anatomy of a Service
 
 `@Injectable({ scope: Scope.DEFAULT })` Decorator used to define that the class is used within Dependency Injection.
 
-
 Scope can be used as DEFAULT in which the Service will become a singleton
 It can be used as REQUEST in which the runtime will serve an instance for each Request
-
 
 `constructor(@Inject('IUserRepository') private userRepository: IUserRepository)`
 
@@ -241,3 +241,154 @@ async create(user: User): Promise<User> {
 
 Each method has an `async` definition since it will work with an async DB call.
 
+## 12. Implement a Repository
+
+```
+// External
+import { DataSource, Repository } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+
+// Internal
+import { User } from 'src/domain/user.entity';
+import { IUserRepository } from 'src/domain/interfaces/user.repository.interface';
+
+@Injectable()
+export class UserRepository
+  extends Repository<User>
+  implements IUserRepository
+{
+  constructor(private dataSource: DataSource) {
+    super(User, dataSource.createEntityManager());
+  }
+
+  async createOne(user: User): Promise<User> {
+    return await this.save(user);
+  }
+
+  async findAll(): Promise<User[]> {
+    return await this.find();
+  }
+
+  async findById(id: number): Promise<User> {
+    return await this.findOneBy({ id });
+  }
+
+  async updateOne(id: number, user: Partial<User>): Promise<void> {
+    await this.save({ ...user, id });
+  }
+
+  async deleteById(id: number): Promise<void> {
+    await this.delete(id);
+  }
+}
+```
+
+### 12.1 Anatomy of a repository
+
+`@Injectable()` - Decorator which makes the repository available for DI
+
+`extends Repository<User>` - The current repository should extend a general repository, thus inheriting default behavior.
+
+`implements IUserRepository` specifying the contract
+
+```
+async findAll(): Promise<User[]> {
+    return await this.find();
+  }
+```
+
+Reusing default behavior.
+
+## 13. Create an entity
+
+```
+// External
+import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+
+@Entity()
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  username: string;
+
+  @Column()
+  email: string;
+}
+
+```
+
+Entities are used to create database tables from code-first approach. Each property decorator will specify what type of column (primary or foreign key)
+
+### 13.1 Anatomy of an entity
+
+`@Entity()` Decorator that specifies a that this class is used to create DB entities in TypeORM via PostgreSQL
+
+`@PrimaryGeneratedColumn()` - Decorator specifying that key is treated as PRIMARY_KEY
+
+`@Column()` - Decorator specifying that a field will be a regular column in the DB
+
+`email: string` Reflects the column name and column type. String automatically translates to varchar
+
+## 14 Verify Modules and dependency injection
+
+```
+// USERS MODULE
+
+// External
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+// Internal
+import { UsersController } from './users.controller';
+import { UsersService } from '../application/users.service';
+import { UserRepository } from 'src/infrastructure/user.repository';
+import { User } from 'src/domain/user.entity';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([User])],
+  controllers: [UsersController],
+  providers: [
+    UsersService,
+    {
+      provide: 'IUserRepository', // Custom provider token
+      useClass: UserRepository,
+    },
+  ],
+})
+export class UsersModule {}
+
+// APP MODULE
+
+// External
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+// Internal
+import { UsersModule } from './users/users.module';
+
+@Module({
+  imports: [
+    UsersModule,
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5433,
+      username: 'postgres',
+      password: '1234',
+      database: 'postgres',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+    }),
+  ],
+})
+export class AppModule {}
+
+```
+
+## 15 Run application
+
+`npm start` Will start the application
+
+`npm format` Will format the application

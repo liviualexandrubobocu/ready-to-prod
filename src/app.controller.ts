@@ -1,5 +1,5 @@
 // External
-import { Controller, Get } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 
 // Internal
 import { AppService } from './app.service';

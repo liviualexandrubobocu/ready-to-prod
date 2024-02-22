@@ -17,6 +17,6 @@ import { User } from 'src/domain/user.entity';
       provide: 'IUserRepository', // Custom provider token
       useClass: UserRepository,
     },
-  ]
+  ],
 })
 export class UsersModule {}
