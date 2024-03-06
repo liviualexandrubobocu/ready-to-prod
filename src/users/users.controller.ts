@@ -7,13 +7,19 @@ import {
   Param,
   Delete,
   Put,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
 // Internal
 import { UsersService } from '../application/users.service';
 import { User } from '../domain/user.entity';
+import { AuthGuard } from '@nestjs/passport';
 
-@Controller('users')
+@ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(AuthGuard())
+@Controller('v1/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 

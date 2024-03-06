@@ -392,3 +392,238 @@ export class AppModule {}
 `npm start` Will start the application
 
 `npm format` Will format the application
+
+# Session 3 Authentication and Authorization
+
+## 1 Install packages for configuration, passport, swagger
+
+`npm i @nestjs/config @nestjs/swagger jwks-rsa passport-azure-ad @types/passport-azure-ad @types/passport-jwt`
+
+## 2 Reconfigure App Module
+
+Reconfigure app Module in order to use .env file for configurations
+
+```
+// External
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+// Internal
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './application/auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
+import { AzureADStrategy } from './application/auth/guards/azure-ad-strategy';
+
+@Module({
+  imports: [
+    UsersModule,
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5433,
+      username: 'postgres',
+      password: '1234',
+      database: 'postgres',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+    }),
+    AuthModule,
+    ConfigModule.forRoot({
+      envFilePath: '.env',
+      isGlobal: true,
+    }),
+  ],
+  providers: [AzureADStrategy],
+})
+export class AppModule {}
+
+```
+
+## 3 Reconfigure main.ts in order to use swagger
+
+In order to add swagger documentation we need to redefine main.ts
+
+```
+import { NestApplication, NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  const logger = new Logger(NestApplication.name);
+
+  app.enableCors();
+
+  app.disable('x-powered-by');
+
+  const config = new DocumentBuilder()
+    .setTitle('Users API')
+    .setDescription(
+      'Service to do CRUD operations on User',
+    )
+    .setVersion('1.0.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: { defaultModelsExpandDepth: -1 },
+  });
+
+  const configService: ConfigService = app.get<ConfigService>(ConfigService);
+  const port = configService.get('PORT') || 3000;
+
+  await app.listen(port);
+  logger.log(`Application started and listening on ${port}`);
+}
+bootstrap();
+
+```
+
+## 4 Create AuthModule
+
+Create AuthModule in order to register AzureAdStrategy passport strategy
+
+```
+// External
+import { Module } from '@nestjs/common';
+import { PassportModule } from '@nestjs/passport';
+
+@Module({
+  imports: [PassportModule.register({ defaultStrategy: 'AzureAD' })],
+  exports: [],
+})
+export class AuthModule {
+  constructor() {}
+}
+
+```
+
+## 5 Create AzureAdStrategy
+
+```
+import { Injectable } from '@nestjs/common';
+import { PassportStrategy } from '@nestjs/passport';
+import { ExtractJwt, Strategy } from 'passport-jwt';
+import * as jwksRsa from 'jwks-rsa';
+import { ConfigService } from '@nestjs/config';
+
+@Injectable()
+export class AzureADStrategy extends PassportStrategy(Strategy, 'AzureAD') {
+  constructor(protected readonly configService: ConfigService) {
+    super({
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      audience: configService.get('AZURE_AD_AUDIENCE'),
+      issuer: `https://sts.windows.net/${configService.get('AZURE_AD_TENANTID')}/`,
+      algorithms: ['RS256'],
+      ignoreExpiration: true,
+      secretOrKeyProvider: jwksRsa.passportJwtSecret({
+        cache: true,
+        rateLimit: true,
+        jwksRequestsPerMinute: 5,
+        jwksUri: `https://login.microsoftonline.com/${configService.get('AZURE_AD_TENANTID')}/discovery/v2.0/keys`,
+      }),
+    });
+  }
+
+  validate(payload: any) {
+    return payload;
+  }
+}
+```
+
+## 6. Redefine UsersController
+
+Redefine Users Controller in order to use Authorization and Swagger Documentation
+
+```
+// External
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+
+// Internal
+import { UsersService } from '../application/users.service';
+import { User } from '../domain/user.entity';
+import { AuthGuard } from '@nestjs/passport';
+
+@ApiTags('Users')
+@ApiBearerAuth()
+@UseGuards(AuthGuard())
+@Controller('v1/users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  create(@Body() createUserDto: User) {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.usersService.findOne(+id);
+  }
+
+  @Get()
+  findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Put(':id')
+  update(@Param('id') id: string, @Body() user: Partial<User>) {
+    return this.usersService.update(+id, user);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.usersService.delete(+id);
+  }
+}
+```
+
+## 7 Redefine Users Module
+
+Redefine users module in order to use passport strategy
+
+```
+
+//
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { PassportModule } from '@nestjs/passport';
+
+// Internal
+import { UsersController } from './users.controller';
+import { UsersService } from '../application/users.service';
+import { UserRepository } from 'src/infrastructure/user.repository';
+import { User } from 'src/domain/user.entity';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    PassportModule.register({ defaultStrategy: 'AzureAD' }),
+  ],
+  controllers: [UsersController],
+  providers: [
+    UsersService,
+    {
+      provide: 'IUserRepository', // Custom provider token
+      useClass: UserRepository,
+    },
+  ],
+})
+export class UsersModule {}
+
+```
