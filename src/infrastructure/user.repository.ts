@@ -1,10 +1,10 @@
 // External
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, DeleteResult, Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 
 // Internal
-import { User } from 'src/domain/user.entity';
-import { IUserRepository } from 'src/domain/interfaces/user.repository.interface';
+import { User } from '../domain/user.entity';
+import { IUserRepository } from '../domain/interfaces/user.repository.interface';
 
 @Injectable()
 export class UserRepository
@@ -27,11 +27,11 @@ export class UserRepository
     return await this.findOneBy({ id });
   }
 
-  async updateOne(id: number, user: Partial<User>): Promise<void> {
-    await this.save({ ...user, id });
+  async updateOne(id: number, user: Partial<User>): Promise<User> {
+    return this.save({ ...user, id });
   }
 
-  async deleteById(id: number): Promise<void> {
-    await this.delete(id);
+  async deleteById(id: number): Promise<DeleteResult> {
+    return this.delete(id);
   }
 }

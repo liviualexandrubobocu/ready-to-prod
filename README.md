@@ -249,8 +249,8 @@ import { DataSource, Repository } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 
 // Internal
-import { User } from 'src/domain/user.entity';
-import { IUserRepository } from 'src/domain/interfaces/user.repository.interface';
+import { User } from '../domain/user.entity';
+import { IUserRepository } from '../domain/interfaces/user.repository.interface';
 
 @Injectable()
 export class UserRepository
@@ -626,4 +626,540 @@ import { User } from 'src/domain/user.entity';
 })
 export class UsersModule {}
 
+```
+
+# Session 5: Testing
+
+## 5.1 Unit Testing for UsersController
+
+Nest.js comes with Jest library installed by default for testing.
+We can use Jest extension by Orta in order to be able to run tests from UI
+
+## 5.1.1 Setting up TestBed module for UsersController
+
+```
+
+describe('UsersController', () => {
+  let controller: UsersController;
+  let service: UsersService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [UsersController],
+      providers: [
+        {
+          provide: UsersService,
+          useValue: {
+            create: jest.fn(),
+            findOne: jest.fn(),
+            findAll: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    controller = module.get<UsersController>(UsersController);
+    service = module.get<UsersService>(UsersService);
+  });
+});
+
+```
+
+Test.createTestingModule will recreate the module for users for testing where we need to specify what class we are testing, in this case the UsersController, and Dependency Injection
+
+### 5.1.2 Blackbox Testing methods in the Controller
+
+Black-box testing is a testing strategy in which we consider we don't know the code inside a method
+
+### 5.1.2.3 Create Method
+
+```
+
+it('should create a user', async () => {
+  const userDto = {
+    id:1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  } as User;
+  const expectedResult = { id: 1, ...userDto };
+
+  jest.spyOn(service, 'create').mockResolvedValue(expectedResult);
+
+  expect(await controller.create(userDto)).toEqual(expectedResult);
+  expect(service.create).toHaveBeenCalledWith(userDto);
+});
+
+```
+
+Here we don't know what UserController create method does, but we expect that the service method should return a user once created.
+Since we expect the controller method to return a user as well, we asume under the hood that when creating an object, making a POST request with a UserDTO, the service should return that user once the entry is created in the DB.
+Hence the dto is the mocked result as well
+
+Creating other blackbox tests:
+
+### 5.1.2.4 Find One
+
+```
+it('should return a user for a given id', async () => {
+    const user = { id: 1, username: 'johndoe', email: 'john.doe@gmail.com' };
+
+    jest.spyOn(service, 'findOne').mockResolvedValue(user);
+
+    const result = await controller.findOne('1');
+    expect(result).toEqual(user);
+});
+```
+
+### 5.1.2.5 Find All
+
+Update One
+
+```
+it('should update a user and return the updated user data', async () => {
+  const userId = '1';
+  const userUpdateDto = {
+    id: 1,
+    username: 'janedoe',
+    email: 'jane.doe@gmail.com',
+  };
+  const updatedUser = {
+    id: 1,
+    username: 'janedoe',
+    email: 'jane.doe@gmail.com',
+  };
+
+  jest.spyOn(service, 'update').mockResolvedValue(updatedUser);
+
+  const result = await controller.update(userId, userUpdateDto);
+  expect(result).toEqual(updatedUser);
+  expect(service.update).toHaveBeenCalledWith(Number(userId), userUpdateDto);
+});
+
+```
+
+### 5.1.2.6 Delete
+
+```
+
+ it('should delete a user and return a success message', async () => {
+  const userId = '1';
+  const successResponse = { raw: 20 } as DeleteResult;
+
+  jest.spyOn(service, 'delete').mockResolvedValue(successResponse);
+
+  const result = await controller.delete(userId);
+  expect(result).toEqual(successResponse);
+  expect(service.delete).toHaveBeenCalledWith(Number(userId));
+});
+```
+
+### 5.1.3 White Box Testing
+
+#### 5.1.3.1 Create Method
+
+```
+it('should call UsersService.create with userDto', async () => {
+  const userDto = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  } as User;
+  await controller.create(userDto);
+  expect(service.create).toHaveBeenCalledWith(userDto);
+});
+```
+
+#### 5.1.3.2 Find All Method
+
+```
+it('should call UsersService.findAll', async () => {
+  const users = [
+    { id: 1, username: 'johndoe', email: 'john.doe@gmail.com' },
+  ];
+
+  jest.spyOn(service, 'findAll').mockResolvedValue(users);
+
+  await controller.findAll();
+  expect(service.findAll).toHaveBeenCalled();
+});
+
+```
+
+### 5.1.3.3 Find One Method
+
+```
+it('should call UsersService.findOne with id and return the result', async () => {
+  const user: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  } as User;
+  jest.spyOn(service, 'findOne').mockResolvedValue(user);
+
+  await controller.findOne('1');
+  expect(service.findOne).toHaveBeenCalledWith(1);
+});
+
+```
+
+### 5.1.3.4 Update Method
+
+```
+// White Box
+it('should call UsersService.update with id and user and return the result', async () => {
+  const updateUserDto: Partial<User> = {
+    id: 1,
+    username: 'janedoe',
+    email: 'jane.doe@gmail.com',
+  };
+
+  await controller.update('1', updateUserDto);
+  expect(service.update).toHaveBeenCalledWith(1, updateUserDto);
+});
+
+```
+
+### 5.1.3.5 Delete Method
+
+```
+it('should call UsersService.delete with id and return the result', async () => {
+  await controller.delete('1');
+  expect(service.delete).toHaveBeenCalledWith(1);
+});
+```
+
+## 5.2 Unit testing the service
+
+Unit testing the service in the same manner as the controller was tested
+
+## 5.2.1. Setting up the test bed
+
+```
+
+import { Test, TestingModule } from '@nestjs/testing';
+import { UsersService } from './users.service';
+import { User } from 'src/domain/user.entity';
+
+describe('UsersService', () => {
+  let service: UsersService;
+  let userRepositoryMock: any;
+
+  beforeEach(async () => {
+    userRepositoryMock = {
+      createOne: jest.fn(),
+      findAll: jest.fn(),
+      findById: jest.fn(),
+      updateOne: jest.fn(),
+      deleteById: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        {
+          provide: 'IUserRepository',
+          useValue: userRepositoryMock,
+        },
+      ],
+    }).compile();
+
+    service = module.get<UsersService>(UsersService);
+  });
+});
+
+```
+
+### 5.2.2 Blackbox Unit Testing on Service methods
+
+#### 5.2.2.1 Create Method
+
+```
+
+it('should successfully create a user', async () => {
+  const user: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  userRepositoryMock.createOne.mockResolvedValue(user);
+
+  const result = await service.create(user);
+  expect(result).toEqual(user);
+});
+
+```
+
+#### 5.2.2.2 FindAll Method
+
+```
+it('should return an array of users', async () => {
+  const users: User[] = [
+    {
+      id: 1,
+      username: 'johndoe',
+      email: 'john.doe@gmail.com',
+    },
+  ];
+  userRepositoryMock.findAll.mockResolvedValue(users);
+
+  const result = await service.findAll();
+  expect(result).toEqual(users);
+});
+
+```
+
+#### 5.2.2.3 Find One Method
+
+```
+it('should return a single user by ID', async () => {
+      const user: User = {
+        id: 1,
+        username: 'johndoe',
+        email: 'john.doe@gmail.com',
+      };
+      userRepositoryMock.findById.mockResolvedValue(user);
+
+      const result = await service.findOne(1);
+      expect(result).toEqual(user);
+});
+
+```
+
+#### 5.2.2.4 Update Method
+
+```
+it('should update a user and return the updated user', async () => {
+  const user: Partial<User> = {
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  const updatedUser: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  userRepositoryMock.updateOne.mockResolvedValue(updatedUser);
+
+  const result = await service.update(1, user);
+  expect(result).toEqual(updatedUser);
+});
+
+```
+
+#### 5.2.2.5 Delete Method
+
+```
+
+it('should delete a user and return the delete result', async () => {
+      const deleteResult = { affected: 1 };
+      userRepositoryMock.deleteById.mockResolvedValue(deleteResult);
+
+      const result = await service.delete(1);
+      expect(result).toEqual(deleteResult);
+    });
+
+```
+
+### 5.2.3 White Box testing on Users Service
+
+#### 5.2.3.1 Create Method
+
+```
+
+// White Box
+it('should call repository createOne', async () => {
+  const user: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  userRepositoryMock.createOne.mockResolvedValue(user);
+
+  await service.create(user);
+  expect(userRepositoryMock.createOne).toHaveBeenCalledWith(user);
+});
+
+```
+
+#### 5.2.3.2. Find All Method
+
+```
+it('should call repository findAll', async () => {
+  const users: User[] = [
+    {
+      id: 1,
+      username: 'johndoe',
+      email: 'john.doe@gmail.com',
+    },
+  ];
+  userRepositoryMock.findAll.mockResolvedValue(users);
+
+  await service.findAll();
+  expect(userRepositoryMock.findAll).toHaveBeenCalled();
+});
+
+```
+
+#### 5.2.3.3 Find One Method
+
+```
+// White Box
+it('should call repository findById', async () => {
+  const user: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  userRepositoryMock.findById.mockResolvedValue(user);
+
+  await service.findOne(1);
+  expect(userRepositoryMock.findById).toHaveBeenCalledWith(1);
+});
+
+```
+
+#### 5.2.3.4. Update Method
+
+```
+// White Box
+it('should call repository updateOne', async () => {
+  const user: Partial<User> = {
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  const updatedUser: User = {
+    id: 1,
+    username: 'johndoe',
+    email: 'john.doe@gmail.com',
+  };
+  userRepositoryMock.updateOne.mockResolvedValue(updatedUser);
+
+  await service.update(1, user);
+  expect(userRepositoryMock.updateOne).toHaveBeenCalledWith(1, user);
+});
+
+```
+
+#### 5.2.3.5 Delete Method
+
+```
+// White Box
+it('should call repository deleteById', async () => {
+  const deleteResult = { affected: 1 };
+  userRepositoryMock.deleteById.mockResolvedValue(deleteResult);
+
+  await service.delete(1);
+  expect(userRepositoryMock.deleteById).toHaveBeenCalledWith(1);
+});
+
+```
+
+## 5.3 Integration Tests
+
+```
+
+import { Test, TestingModule } from '@nestjs/testing';
+import * as request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { INestApplication } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { AzureADE2EStrategy } from '../src/application/auth/guards/azure-ad-strategy.e2e';
+
+describe('UsersController (e2e)', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [
+        AppModule
+      ],
+    }).overrideGuard(AuthGuard())
+      .useValue(new AzureADE2EStrategy())
+      .compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('/v1/users (POST) should create a user', async () => {
+    return request(app.getHttpServer())
+      .post('/v1/users')
+      .send({ username: 'johndoe', email: 'john@doe.com' })
+      .expect(201);
+  });
+
+  it('/v1/users (GET) should return all users', async () => {
+    return request(app.getHttpServer())
+      .get('/v1/users')
+      .expect(200)
+      .then((response) => {
+        expect(response.body.length).toBeGreaterThan(0);
+      });
+  });
+
+  let userId: number;
+
+  it('/v1/users/:id (GET) should return a user', async () => {
+    userId = 3; // Set this to the actual ID
+    return request(app.getHttpServer())
+      .get(`/v1/users/${userId}`)
+      .expect(200)
+      .then((response) => {
+        expect(response.body).toHaveProperty('id', userId);
+      });
+  });
+
+  it('/v1/users/:id (PUT) should update a user', () => {
+    return request(app.getHttpServer())
+      .put(`/v1/users/${userId}`)
+      .send({ username: 'johndoe', email: 'john@doe.com' })
+      .expect(200)
+      .then((response) => {
+        expect(response.body).toHaveProperty('username', 'johndoe');
+      });
+  });
+
+  it('/v1/users/:id (DELETE) should delete a user', () => {
+    return request(app.getHttpServer())
+      .delete(`/v1/users/${userId}`)
+      .expect(200);
+  });
+});
+
+```
+
+## 5.3.1 Mocking Auth Guard
+
+```
+import { ExecutionContext, Injectable } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+
+@Injectable()
+export class AzureADE2EStrategy extends AuthGuard('AzureAD') {
+  canActivate(context: ExecutionContext) {
+    if (process.env.NODE_ENV === 'test') {
+      return true;
+    }
+    return super.canActivate(context);
+  }
+}
+
+```
+
+### 5.3.2 Reconfigure package.json
+
+Run `npm i cross-env`
+
+```
+"start": "cross-env NODE_ENV=development && nest start"
+```
+
+```
+"test:e2e": "cross-env NODE_ENV=test && jest --config ./test/jest-e2e.json"
 ```
