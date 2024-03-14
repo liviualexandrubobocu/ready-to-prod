@@ -673,7 +673,7 @@ Test.createTestingModule will recreate the module for users for testing where we
 
 Black-box testing is a testing strategy in which we consider we don't know the code inside a method
 
-### 5.1.2.3 Create Method
+#### 5.1.2.1 Create Method
 
 ```
 
@@ -688,7 +688,6 @@ it('should create a user', async () => {
   jest.spyOn(service, 'create').mockResolvedValue(expectedResult);
 
   expect(await controller.create(userDto)).toEqual(expectedResult);
-  expect(service.create).toHaveBeenCalledWith(userDto);
 });
 
 ```
@@ -699,7 +698,7 @@ Hence the dto is the mocked result as well
 
 Creating other blackbox tests:
 
-### 5.1.2.4 Find One
+#### 5.1.2.2 Find One
 
 ```
 it('should return a user for a given id', async () => {
@@ -712,9 +711,23 @@ it('should return a user for a given id', async () => {
 });
 ```
 
-### 5.1.2.5 Find All
+#### 5.1.2.3 Find All
 
-Update One
+```
+it('should return an array of users', async () => {
+  const users = [
+    { id: 1, username: 'johndoe', email: 'john.doe@gmail.com' },
+  ];
+
+  jest.spyOn(service, 'findAll').mockResolvedValue(users);
+
+  const result = await controller.findAll();
+  expect(result).toEqual(users);
+});
+
+```
+
+#### 5.1.2.4 Update One
 
 ```
 it('should update a user and return the updated user data', async () => {
@@ -734,12 +747,11 @@ it('should update a user and return the updated user data', async () => {
 
   const result = await controller.update(userId, userUpdateDto);
   expect(result).toEqual(updatedUser);
-  expect(service.update).toHaveBeenCalledWith(Number(userId), userUpdateDto);
 });
 
 ```
 
-### 5.1.2.6 Delete
+#### 5.1.2.5 Delete
 
 ```
 
@@ -751,7 +763,6 @@ it('should update a user and return the updated user data', async () => {
 
   const result = await controller.delete(userId);
   expect(result).toEqual(successResponse);
-  expect(service.delete).toHaveBeenCalledWith(Number(userId));
 });
 ```
 
