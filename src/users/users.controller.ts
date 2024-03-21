@@ -10,15 +10,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
 
 // Internal
 import { UsersService } from '../application/users.service';
 import { User } from '../domain/user.entity';
-import { AuthGuard } from '@nestjs/passport';
+import ConditionalDecorator from 'src/application/utils/ConditionalDecorator';
 
 @ApiTags('Users')
-@ApiBearerAuth()
-@UseGuards(AuthGuard())
+@ConditionalDecorator(process.env.NODE_ENV === 'development', ApiBearerAuth())
+@ConditionalDecorator(
+  process.env.NODE_ENV === 'development',
+  UseGuards(AuthGuard()),
+)
 @Controller('v1/users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
